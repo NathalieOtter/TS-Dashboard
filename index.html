@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Release Metrics Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0f1f2c; /* Moonshot */
+      --panel: #0f1f2c;
+      --muted: #9fb3c8;
+      --card: #122237;
+      --accent: #0062e3;   /* True Blue */
+      --accent-2: #0026ee; /* Deep Blue */
+      --accent-3: #8fceee; /* Sky 2.0 */
+      --highlight: #fed141; /* Gold Medal */
+      --warn: #ff7f64; /* Fry Sauce */
+      --border: #1f2f46;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(0,98,227,0.16), transparent 26%),
+        radial-gradient(circle at 80% 0%, rgba(143,206,238,0.18), transparent 24%),
+        var(--bg);
+      color: white;
+      min-height: 100vh;
+    }
+    header {
+      padding: 24px 32px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15,23,42,0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    h2 { margin: 12px 0 8px; font-size: 16px; color: #e2e8f0; }
+    p { margin: 0; color: var(--muted); }
+    main { padding: 16px 32px 32px; }
+    .tabs { display: flex; gap: 8px; margin-top: 12px; }
+    .tab {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: white;
+      cursor: pointer;
+      background: #0b1221;
+      transition: 150ms ease;
+    }
+    .tab.active { background: var(--accent); border-color: transparent; box-shadow: 0 10px 24px rgba(0,98,227,0.32); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+    .card {
+      border: 1px solid var(--border);
+      background: rgba(15,31,44,0.92);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+    }
+    .card h3 { margin: 0 0 6px; font-size: 15px; color: #d9e3f5; }
+    .big-number { font-size: 28px; font-weight: 700; margin: 2px 0; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: #0b1221; border: 1px solid var(--border); color: #e2e8f0; font-size: 12px; }
+    .pill.good { background: rgba(0,98,227,0.12); border-color: rgba(0,98,227,0.45); color: #b4d2ff; }
+    .pill.bad { background: rgba(255,127,100,0.12); border-color: rgba(255,127,100,0.45); color: #ffd5cb; }
+    select {
+      padding: 10px 12px;
+      background: #0b1221;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: white;
+      min-width: 220px;
+      font-size: 14px;
+    }
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1221;
+      color: #e2e8f0;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 120ms ease;
+    }
+    .btn:hover { background: #152840; border-color: rgba(255,255,255,0.12); }
+    .btn.primary { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 8px 24px rgba(0,98,227,0.35); }
+    table { width: 100%; border-collapse: collapse; color: #e2e8f0; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    th { text-align: left; color: var(--muted); font-weight: 600; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .section { margin-top: 18px; }
+    .chart { height: 320px; }
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+    .stacked { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    footer { margin-top: 16px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 1600px) { .charts-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 680px) { 
+      main { padding: 14px; } 
+      header { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Release Metrics Dashboard</h1>
+    <p>Per-release deep dive and the last 10 releases compared.</p>
+    <div class="tabs">
+      <button class="tab active" data-tab="detail">Per release</button>
+      <button class="tab" data-tab="compare">Last 10 releases</button>
+    </div>
+  </header>
+
+  <main>
+
+    <section id="detail" class="tab-panel">
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap: wrap;">
+        <h2 style="margin:0;">Release overview</h2>
+        <select id="releaseSelect"></select>
+        <span id="mprPill" class="pill"></span>
+        <span id="datePill" class="pill"></span>
+      </div>
+
+      <div class="grid" id="kpiCards"></div>
+
+      <div class="stacked section">
+        <div class="card">
+          <h3>SLA adherence</h3>
+          <div id="qualityChart" class="chart"></div>
+        </div>
+        <div class="card">
+          <h3>Support load vs delivery</h3>
+          <div id="supportChart" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="section card">
+        <h3>Full metric breakdown</h3>
+        <div id="detailTable"></div>
+      </div>
+    </section>
+
+    <section id="compare" class="tab-panel" style="display:none;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
+        <h2 style="margin:0;">Last 10 releases</h2>
+        <span class="pill">Sorted oldest → newest</span>
+      </div>
+      <div class="charts-grid">
+        <div class="card">
+          <h3>Bugs: solved vs opened</h3>
+          <div id="bugsChart" class="chart"></div>
+        </div>
+        <div class="card">
+          <h3>ZD tickets: opened vs solved</h3>
+          <div id="ticketsChart" class="chart"></div>
+        </div>
+        <div class="card">
+          <h3>Net new bugs per release</h3>
+          <div id="openedChart" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="section card">
+        <h3>Comparison table</h3>
+        <div id="compareTable"></div>
+      </div>
+    </section>
+
+    <footer>
+      Data source: Release metrics.csv · Charts: Plotly (client-only; no backend needed).
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:12px; font-size:11px;">
+        <button id="exportPng" class="btn primary" style="padding:4px 8px; font-size:11px;">Export PNG</button>
+        <button id="exportPdf" class="btn" style="padding:4px 8px; font-size:11px;">Export PDF</button>
+        <span class="pill" style="font-size:10px; padding:4px 8px;">Exports capture what you see on screen</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const colors = {
+      trueBlue: '#0062e3',
+      moonshot: '#0f1f2c',
+      frySauce: '#ff7f64',
+      gold: '#fed141',
+      deepBlue: '#0026ee',
+      sky: '#8fceee',
+    };
+
+    const fmt = (n) => Number.isFinite(n) ? n.toLocaleString() : '0';
+
+    const csvUrl = encodeURI('Release metrics.xlsx - release (summarised).csv');
+
+    async function loadCsv() {
+      const res = await fetch(csvUrl);
+      if (!res.ok) throw new Error('Could not load CSV. If opening file://, start a local server (see notes below).');
+      const text = await res.text();
+      return parseCsv(text);
+    }
+
+    function parseCsv(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const headers = lines.shift().split(',').map(h => h.trim().toLowerCase());
+      return lines.map(line => {
+        if (!line.trim()) return null;
+        const cols = line.split(',').map(c => c.trim());
+        const row = {};
+        headers.forEach((h, i) => {
+          const val = cols[i];
+          row[h] = val !== undefined && val !== null ? val.trim() : '';
+        });
+        const get = (key) => {
+          const val = row[key.toLowerCase()];
+          return val !== undefined && val !== null && val !== '' ? val : '';
+        };
+        const toInt = (key, fallback = null) => {
+          const val = get(key);
+          if (val === '') return fallback !== null ? fallback : 0;
+          const v = parseInt(val, 10);
+          return Number.isFinite(v) && !isNaN(v) ? v : (fallback !== null ? fallback : 0);
+        };
+        const toBool = (key) => String(get(key)).toLowerCase() === 'true';
+        const toDateIso = (key) => {
+          const raw = get(key);
+          const parts = raw.split('/');
+          if (parts.length === 3) {
+            const [m, d, y] = parts;
+            return `${y.padStart(4,'0')}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+          }
+          return raw;
+        };
+        const releaseName = get('release');
+        if (!releaseName) return null;
+        const netNew = toInt('net new bugs created', toInt('bugs opened', 0) - toInt('total bugs solved', 0));
+        const lxpSfVal = toInt('lxp sf associations solved', 0);
+        const acmSfVal = toInt('acm sf associations solved', 0);
+        const sumSf = lxpSfVal + acmSfVal;
+        const totalSfFromColRaw = get('total sf associations solved');
+        let totalSfFromCol = null;
+        if (totalSfFromColRaw !== '') {
+          const parsed = parseInt(totalSfFromColRaw, 10);
+          if (!isNaN(parsed) && parsed >= 0) {
+            totalSfFromCol = parsed;
+          }
+        }
+        // Use column value if available and > 0, otherwise use calculated sum
+        const totalSfSolvedCalc = (totalSfFromCol !== null && totalSfFromCol > 0) ? totalSfFromCol : sumSf;
+        return {
+          release: releaseName,
+          date: toDateIso('date'),
+          mpr: toBool('mpr'),
+          lxpBugs: toInt('lxp bugs solved'),
+          lxpZd: toInt('lxp zd tickets solved'),
+          lxpSf: toInt('lxp sf associations solved'),
+          acmBugs: toInt('acm bugs solved'),
+          acmZd: toInt('acm zd tickets solved'),
+          acmSf: toInt('acm sf associations solved'),
+          totalBugsSolved: toInt('total bugs solved'),
+          totalZdSolved: toInt('total zd tickets solved'),
+          totalSfSolved: totalSfSolvedCalc,
+          bugsOpened: toInt('bugs opened'),
+          zdOpened: toInt('zd tickets opened'),
+          sfOpened: toInt('sf associations opened'),
+          netNew,
+          p2Within: toInt('p2 within sla'),
+          p2Over: toInt('p2 over sla'),
+          p3Within: toInt('p3 within sla'),
+          p3Over: toInt('p3 over sla'),
+        };
+      }).filter(Boolean).sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    function renderApp(releases) {
+      const byRelease = new Map(releases.map(r => [r.release, r]));
+
+      // Tabs
+      const tabButtons = document.querySelectorAll('.tab');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('.tab-panel').forEach(panel => panel.style.display = 'none');
+          document.getElementById(btn.dataset.tab).style.display = '';
+        });
+      });
+
+      // Select
+      const select = document.getElementById('releaseSelect');
+      releases.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.release;
+        opt.textContent = `${r.release} (${r.date})`;
+        select.appendChild(opt);
+      });
+
+      const mprPill = document.getElementById('mprPill');
+      const datePill = document.getElementById('datePill');
+      const kpiCards = document.getElementById('kpiCards');
+      const detailTable = document.getElementById('detailTable');
+
+      function renderRelease(id) {
+        const r = byRelease.get(id);
+        if (!r) return;
+        mprPill.textContent = r.mpr ? 'Major product release' : 'Minor release';
+        mprPill.className = 'pill ' + (r.mpr ? 'good' : '');
+        datePill.textContent = new Date(r.date).toLocaleDateString();
+
+        const topCards = [
+          { label: 'Bugs solved', value: r.totalBugsSolved, color: colors.trueBlue },
+          { label: 'Bugs opened', value: r.bugsOpened, color: colors.frySauce },
+        ];
+        const bottomCards = [
+          { label: 'Support tickets solved', value: r.totalZdSolved, color: colors.deepBlue },
+          { label: 'Support tickets opened', value: r.zdOpened, color: colors.gold },
+          { label: 'Client associations solved', value: r.totalSfSolved, color: colors.sky },
+          { label: 'Client associations opened', value: r.sfOpened, color: colors.frySauce },
+        ];
+        kpiCards.innerHTML = `
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+            ${topCards.map(c => `
+              <div class="card" style="border-color: rgba(255,255,255,0.04);">
+                <h3>${c.label}</h3>
+                <div class="big-number" style="color:${c.color}; font-size: 36px;">${fmt(c.value)}</div>
+                <div class="muted">Release ${r.release}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+            ${bottomCards.map(c => `
+              <div class="card" style="border-color: rgba(255,255,255,0.04);">
+                <h3 style="font-size: 13px;">${c.label}</h3>
+                <div class="big-number" style="color:${c.color}; font-size: 24px;">${fmt(c.value)}</div>
+                <div class="muted" style="font-size: 11px;">Release ${r.release}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        detailTable.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th><th>Bugs solved</th><th>ZD tickets solved</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>LXP</td><td>${fmt(r.lxpBugs)}</td><td>${fmt(r.lxpZd)}</td></tr>
+              <tr><td>ACM</td><td>${fmt(r.acmBugs)}</td><td>${fmt(r.acmZd)}</td></tr>
+              <tr><td><strong>Total</strong></td><td><strong>${fmt(r.totalBugsSolved)}</strong></td><td><strong>${fmt(r.totalZdSolved)}</strong></td></tr>
+            </tbody>
+          </table>
+        `;
+
+        Plotly.react('qualityChart', [
+          { name: 'Within SLA', x: ['P2','P3'], y: [r.p2Within, r.p3Within], type: 'bar', marker: { color: colors.trueBlue } },
+          { name: 'Over SLA', x: ['P2','P3'], y: [r.p2Over, r.p3Over], type: 'bar', marker: { color: colors.frySauce } }
+        ], { barmode:'group', margin: { t: 12, b: 40, l: 40, r: 10 }, legend:{orientation:'h',x:0,y:1.05}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{gridcolor:'#1f2937'} }, {displayModeBar:false});
+
+        Plotly.react('supportChart', [
+          { name: 'Opened', x: ['Bugs','Support tickets','Client assoc.'], y: [r.bugsOpened, r.zdOpened, r.sfOpened], type: 'bar', marker:{color: colors.frySauce} },
+          { name: 'Solved', x: ['Bugs','Support tickets','Client assoc.'], y: [r.totalBugsSolved, r.totalZdSolved, r.totalSfSolved], type: 'bar', marker:{color: colors.trueBlue} },
+        ], { barmode:'group', margin:{t:12,b:40,l:40,r:10}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{gridcolor:'#1f2937'} }, {displayModeBar:false});
+      }
+
+      select.addEventListener('change', e => renderRelease(e.target.value));
+      renderRelease(releases[releases.length - 1].release);
+      select.value = releases[releases.length - 1].release;
+
+      // Comparative charts (oldest -> newest)
+      const recent = [...releases].slice(-10);
+      const names = recent.map(r => r.release);
+
+      Plotly.newPlot('bugsChart', [
+        { name:'Solved', x: names, y: recent.map(r => r.totalBugsSolved), type: 'bar', marker:{color: colors.trueBlue} },
+        { name:'Opened', x: names, y: recent.map(r => r.bugsOpened), type: 'bar', marker:{color: colors.frySauce} },
+      ], { barmode:'group', margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.12}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'Bugs', gridcolor:'#1f2937'} }, {displayModeBar:false});
+
+      Plotly.newPlot('ticketsChart', [
+        { name:'ZD Tickets Opened', x:names, y: recent.map(r => r.zdOpened), type:'bar', marker:{color: colors.gold} },
+        { name:'ZD Tickets Solved', x:names, y: recent.map(r => r.totalZdSolved), type:'bar', marker:{color: colors.deepBlue} },
+      ], { barmode:'group', margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.12}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'ZD tickets', gridcolor:'#1f2937'} }, {displayModeBar:false});
+
+      Plotly.newPlot('openedChart', [
+        { name:'Net new bugs', x:names, y: recent.map(r => r.netNew), type:'bar', marker:{color: colors.sky} },
+      ], { margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.05}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'Net new bugs', gridcolor:'#1f2937'} }, {displayModeBar:false});
+
+      const minNet = Math.min(...recent.map(r => r.netNew));
+      const maxNet = Math.max(...recent.map(r => r.netNew));
+
+      const compareTable = document.getElementById('compareTable');
+      compareTable.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Release</th><th>Date</th><th>Bugs solved</th><th>Bugs opened</th><th>ZD tickets solved</th><th>ZD tickets opened</th><th>Net new bugs</th><th>P2 within</th><th>P2 over</th><th>P3 within</th><th>P3 over</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${recent.map(r => {
+              const cls = r.netNew === minNet ? 'style="background: rgba(0,98,227,0.15);"' : r.netNew === maxNet ? 'style="background: rgba(255,127,100,0.15);"' : '';
+              return `
+              <tr ${cls}>
+                <td>${r.release}${r.mpr ? ' • Major' : ''}</td>
+                <td>${new Date(r.date).toLocaleDateString()}</td>
+                <td>${fmt(r.totalBugsSolved)}</td>
+                <td>${fmt(r.bugsOpened)}</td>
+                <td>${fmt(r.totalZdSolved)}</td>
+                <td>${fmt(r.zdOpened)}</td>
+                <td>${fmt(r.netNew)}</td>
+                <td>${fmt(r.p2Within)}</td>
+                <td>${fmt(r.p2Over)}</td>
+                <td>${fmt(r.p3Within)}</td>
+                <td>${fmt(r.p3Over)}</td>
+              </tr>
+            `;}).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Export buttons
+      const exportPng = document.getElementById('exportPng');
+      const exportPdf = document.getElementById('exportPdf');
+      if (exportPng && exportPdf) {
+        const capture = async () => {
+          const main = document.querySelector('main');
+          return html2canvas(main, { backgroundColor: '#0f1f2c', scale: 2 });
+        };
+        exportPng.addEventListener('click', async () => {
+          const canvas = await capture();
+          const link = document.createElement('a');
+          link.download = 'release-metrics.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        });
+        exportPdf.addEventListener('click', async () => {
+          const canvas = await capture();
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width, canvas.height] });
+          pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+          pdf.save('release-metrics.pdf');
+        });
+      }
+    }
+
+    loadCsv()
+      .then(renderApp)
+      .then(() => {
+        window.addEventListener('resize', () => {
+          ['bugsChart','ticketsChart','openedChart'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) Plotly.Plots.resize(el);
+          });
+        });
+      })
+      .catch(err => {
+        const main = document.querySelector('main');
+        main.innerHTML = `<div class="card"><h3>Data load error</h3><p>${err.message}</p><p class="muted">If you opened this file directly (file://), start a local server: <code>python3 -m http.server</code> and open <code>http://localhost:8000/index.html</code>.</p></div>`;
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
+

@@ -174,6 +174,8 @@
           <h3>ZD tickets: solved vs opened</h3>
           <div id="ticketsChart" class="chart"></div>
         </div>
+      </div>
+      <div class="section">
         <div class="card">
           <h3>Net new bugs per release</h3>
           <div id="openedChart" class="chart"></div>
@@ -426,17 +428,62 @@
       const names = recent.map(r => r.release);
 
       Plotly.newPlot('bugsChart', [
-        { name:'Solved', x: names, y: recent.map(r => r.totalBugsSolved), type: 'bar', marker:{color: colors.trueBlue} },
-        { name:'Opened', x: names, y: recent.map(r => r.bugsOpened), type: 'bar', marker:{color: colors.frySauce} },
+        { 
+          name:'Solved', 
+          x: names, 
+          y: recent.map(r => r.totalBugsSolved), 
+          type: 'bar', 
+          marker:{color: colors.trueBlue},
+          text: recent.map(r => r.totalBugsSolved),
+          textposition: 'top',
+          textfont: { color: 'white', size: 11 }
+        },
+        { 
+          name:'Opened', 
+          x: names, 
+          y: recent.map(r => r.bugsOpened), 
+          type: 'bar', 
+          marker:{color: colors.frySauce},
+          text: recent.map(r => r.bugsOpened),
+          textposition: 'top',
+          textfont: { color: 'black', size: 11 }
+        },
       ], { barmode:'group', margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.12}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'Bugs', gridcolor:'#1f2937'} }, {displayModeBar:false});
 
       Plotly.newPlot('ticketsChart', [
-        { name:'ZD Tickets Solved', x:names, y: recent.map(r => r.totalZdSolved), type:'bar', marker:{color: colors.deepBlue} },
-        { name:'ZD Tickets Opened', x:names, y: recent.map(r => r.zdOpened), type:'bar', marker:{color: colors.gold} },
+        { 
+          name:'ZD Tickets Solved', 
+          x:names, 
+          y: recent.map(r => r.totalZdSolved), 
+          type:'bar', 
+          marker:{color: colors.deepBlue},
+          text: recent.map(r => r.totalZdSolved),
+          textposition: 'top',
+          textfont: { color: 'white', size: 11 }
+        },
+        { 
+          name:'ZD Tickets Opened', 
+          x:names, 
+          y: recent.map(r => r.zdOpened), 
+          type:'bar', 
+          marker:{color: colors.gold},
+          text: recent.map(r => r.zdOpened),
+          textposition: 'top',
+          textfont: { color: 'black', size: 11 }
+        },
       ], { barmode:'group', margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.12}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'ZD tickets', gridcolor:'#1f2937'} }, {displayModeBar:false});
 
       Plotly.newPlot('openedChart', [
-        { name:'Net new bugs', x:names, y: recent.map(r => r.netNew), type:'bar', marker:{color: colors.sky} },
+        { 
+          name:'Net new bugs', 
+          x:names, 
+          y: recent.map(r => r.netNew), 
+          type:'bar', 
+          marker:{color: colors.sky},
+          text: recent.map(r => r.netNew),
+          textposition: 'top',
+          textfont: { color: 'white', size: 12 }
+        },
       ], { margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.05}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'Net new bugs', gridcolor:'#1f2937'} }, {displayModeBar:false});
 
       const minNet = Math.min(...recent.map(r => r.netNew));
@@ -516,3 +563,4 @@
 </body>
 </html>
 
+ 

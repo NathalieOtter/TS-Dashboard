@@ -3,6 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, nocache" />
+  <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="slurp" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="duckduckbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="baiduspider" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="yandexbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="facebookexternalhit" content="noindex, nofollow" />
+  <meta name="twitterbot" content="noindex, nofollow" />
+  <meta name="linkedinbot" content="noindex, nofollow" />
   <title>Release Metrics Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,6 +128,7 @@
       main { padding: 14px; } 
       header { padding: 16px; }
       .charts-grid { grid-template-columns: 1fr; }
+      .detail-table-wrapper { grid-template-columns: 1fr !important; }
     }
   </style>
 </head>
@@ -189,7 +200,7 @@
     </section>
 
     <footer>
-      Data source: Release metrics.csv · Charts: Plotly (client-only; no backend needed).
+      Data source: Release Metrics - release (summarised).csv · Charts: Plotly (client-only; no backend needed).
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:12px; font-size:11px;">
         <button id="exportPng" class="btn primary" style="padding:4px 8px; font-size:11px;">Export PNG</button>
         <button id="exportPdf" class="btn" style="padding:4px 8px; font-size:11px;">Export PDF</button>
@@ -210,7 +221,7 @@
 
     const fmt = (n) => Number.isFinite(n) ? n.toLocaleString() : '0';
 
-    const csvUrl = encodeURI('Release metrics.xlsx - release (summarised).csv');
+    const csvUrl = encodeURI('Release Metrics - release (summarised).csv');
 
     async function loadCsv() {
       const res = await fetch(csvUrl);
@@ -219,12 +230,64 @@
       return parseCsv(text);
     }
 
+    function parseCsvLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        
+        if (char === '"') {
+          if (inQuotes && nextChar === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current);
+      return result;
+    }
+
     function parseCsv(text) {
-      const lines = text.trim().split(/\r?\n/);
-      const headers = lines.shift().split(',').map(h => h.trim().toLowerCase());
-      return lines.map(line => {
+      // Parse CSV with proper handling of quoted fields containing newlines
+      const lines = [];
+      let currentLine = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const nextChar = text[i + 1];
+        
+        if (char === '"') {
+          if (inQuotes && nextChar === '"') {
+            currentLine += '"';
+            i++; // Skip next quote
+          } else {
+            inQuotes = !inQuotes;
+            currentLine += char;
+          }
+        } else if (char === '\n' && !inQuotes) {
+          lines.push(currentLine);
+          currentLine = '';
+        } else {
+          currentLine += char;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      
+      const headers = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
+      return lines.slice(1).map(line => {
         if (!line.trim()) return null;
-        const cols = line.split(',').map(c => c.trim());
+        const cols = parseCsvLine(line);
         const row = {};
         headers.forEach((h, i) => {
           const val = cols[i];
@@ -287,6 +350,7 @@
           p2Over: toInt('p2 over sla'),
           p3Within: toInt('p3 within sla'),
           p3Over: toInt('p3 over sla'),
+          trendSummary: get('trend summary').replace(/^"|"$/g, '').trim(),
         };
       }).filter(Boolean).sort((a, b) => new Date(a.date) - new Date(b.date));
     }
@@ -357,19 +421,29 @@
           </div>
         `;
 
+        const trendText = r.trendSummary || 'No trend analysis available for this release.';
         detailTable.innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Area</th><th>Bugs solved</th><th>ZD tickets solved</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>LXP</td><td>${fmt(r.lxpBugs)}</td><td>${fmt(r.lxpZd)}</td></tr>
-              <tr><td>ACM</td><td>${fmt(r.acmBugs)}</td><td>${fmt(r.acmZd)}</td></tr>
-              <tr><td><strong>Total</strong></td><td><strong>${fmt(r.totalBugsSolved)}</strong></td><td><strong>${fmt(r.totalZdSolved)}</strong></td></tr>
-            </tbody>
-          </table>
+          <div class="detail-table-wrapper" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+              <h3 style="margin-top: 0;">Full metric breakdown</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Area</th><th>Bugs solved</th><th>ZD tickets solved</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>LXP</td><td>${fmt(r.lxpBugs)}</td><td>${fmt(r.lxpZd)}</td></tr>
+                  <tr><td>ACM</td><td>${fmt(r.acmBugs)}</td><td>${fmt(r.acmZd)}</td></tr>
+                  <tr><td><strong>Total</strong></td><td><strong>${fmt(r.totalBugsSolved)}</strong></td><td><strong>${fmt(r.totalZdSolved)}</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3 style="margin-top: 0;">Trend Analysis</h3>
+              <div style="color: #e2e8f0; line-height: 1.6; font-size: 13px; white-space: pre-wrap;">${trendText}</div>
+            </div>
+          </div>
         `;
 
         Plotly.react('qualityChart', [
@@ -482,7 +556,7 @@
           marker:{color: colors.sky},
           text: recent.map(r => r.netNew),
           textposition: 'top',
-          textfont: { color: colors.deepBlue, size: 12 }
+          textfont: { color: 'white', size: 12 }
         },
       ], { margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.05}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'Net new bugs', gridcolor:'#1f2937'} }, {displayModeBar:false});
 
@@ -563,4 +637,3 @@
 </body>
 </html>
 
- 

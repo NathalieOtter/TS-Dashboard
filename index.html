@@ -165,10 +165,7 @@
         </div>
       </div>
 
-      <div class="section card">
-        <h3>Full metric breakdown</h3>
-        <div id="detailTable"></div>
-      </div>
+      <div class="section" id="detailTable"></div>
     </section>
 
     <section id="compare" class="tab-panel" style="display:none;">
@@ -422,11 +419,19 @@
         `;
 
         const trendText = r.trendSummary || 'No trend analysis available for this release.';
+        // Format trend text: preserve existing paragraph breaks and add spacing between statements
+        const formattedTrendText = trendText
+          .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines to double newlines
+          .split(/\n/)
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .join('\n\n'); // Add double line breaks between statements for better readability
+        
         detailTable.innerHTML = `
           <div class="detail-table-wrapper" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div>
-              <h3 style="margin-top: 0;">Full metric breakdown</h3>
-              <table>
+            <div class="card">
+              <h3>Full metric breakdown</h3>
+              <table style="margin-top: 8px;">
                 <thead>
                   <tr>
                     <th>Area</th><th>Bugs solved</th><th>ZD tickets solved</th>
@@ -439,9 +444,9 @@
                 </tbody>
               </table>
             </div>
-            <div>
-              <h3 style="margin-top: 0;">Trend Analysis</h3>
-              <div style="color: #e2e8f0; line-height: 1.6; font-size: 13px; white-space: pre-wrap;">${trendText}</div>
+            <div class="card">
+              <h3>Trend Analysis</h3>
+              <div style="color: #e2e8f0; line-height: 1.8; font-size: 13px; white-space: pre-wrap; margin-top: 8px;">${formattedTrendText}</div>
             </div>
           </div>
         `;
@@ -556,7 +561,7 @@
           marker:{color: colors.sky},
           text: recent.map(r => r.netNew),
           textposition: 'top',
-          textfont: { color: 'white', size: 12 }
+          textfont: { color: '#0f1f2c', size: 12 }
         },
       ], { margin:{t:12,b:70,l:50,r:10}, legend:{orientation:'h',x:0,y:1.05}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#e2e8f0'}, yaxis:{title:'Net new bugs', gridcolor:'#1f2937'} }, {displayModeBar:false});
 

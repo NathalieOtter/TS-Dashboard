@@ -569,7 +569,17 @@
       const maxNet = Math.max(...recent.map(r => r.netNew));
 
       const compareTable = document.getElementById('compareTable');
+      const bestRelease = recent.find(r => r.netNew === minNet);
+      const worstRelease = recent.find(r => r.netNew === maxNet);
       compareTable.innerHTML = `
+        <div style="margin-bottom: 12px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+          <span class="pill" style="background: rgba(0,98,227,0.15); border-color: rgba(0,98,227,0.45); color: #b4d2ff;">
+            <span style="font-weight: 600;">Best:</span> Lowest net new bugs (${fmt(minNet)})
+          </span>
+          <span class="pill" style="background: rgba(255,127,100,0.15); border-color: rgba(255,127,100,0.45); color: #ffd5cb;">
+            <span style="font-weight: 600;">Worst:</span> Highest net new bugs (${fmt(maxNet)})
+          </span>
+        </div>
         <table>
           <thead>
             <tr>
@@ -578,16 +588,20 @@
           </thead>
           <tbody>
             ${recent.map(r => {
-              const cls = r.netNew === minNet ? 'style="background: rgba(0,98,227,0.15);"' : r.netNew === maxNet ? 'style="background: rgba(255,127,100,0.15);"' : '';
+              const isBest = r.netNew === minNet;
+              const isWorst = r.netNew === maxNet;
+              const cls = isBest ? 'style="background: rgba(0,98,227,0.15); border-left: 3px solid #0062e3;"' : isWorst ? 'style="background: rgba(255,127,100,0.15); border-left: 3px solid #ff7f64;"' : '';
+              const badge = isBest ? '<span class="pill" style="background: rgba(0,98,227,0.25); border-color: rgba(0,98,227,0.6); color: #b4d2ff; font-size: 10px; padding: 2px 6px; margin-left: 6px;">BEST</span>' : 
+                           isWorst ? '<span class="pill" style="background: rgba(255,127,100,0.25); border-color: rgba(255,127,100,0.6); color: #ffd5cb; font-size: 10px; padding: 2px 6px; margin-left: 6px;">WORST</span>' : '';
               return `
               <tr ${cls}>
-                <td>${r.release}${r.mpr ? ' • Major' : ''}</td>
+                <td><span style="display: inline-flex; align-items: center;">${r.release}${r.mpr ? ' • Major' : ''}${badge}</span></td>
                 <td>${new Date(r.date).toLocaleDateString()}</td>
                 <td>${fmt(r.totalBugsSolved)}</td>
                 <td>${fmt(r.bugsOpened)}</td>
                 <td>${fmt(r.totalZdSolved)}</td>
                 <td>${fmt(r.zdOpened)}</td>
-                <td>${fmt(r.netNew)}</td>
+                <td><strong>${fmt(r.netNew)}</strong></td>
                 <td>${fmt(r.p2Within)}</td>
                 <td>${fmt(r.p2Over)}</td>
                 <td>${fmt(r.p3Within)}</td>
